@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>F5-TTS WebSocket Client</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        .status {
+            display: inline-block;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            margin-top: 10px;
+        }
+        
+        .status.connected {
+            background: #10b981;
+        }
+        
+        .status.disconnected {
+            background: #ef4444;
+        }
+        
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            padding: 30px;
+        }
+        
+        .section {
+            background: #f9fafb;
+            border-radius: 10px;
+            padding: 25px;
+            border: 1px solid #e5e7eb;
+        }
+        
+        .section h2 {
+            color: #1f2937;
+            margin-bottom: 20px;
+            font-size: 1.5em;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            color: #374151;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        
+        input[type="text"],
+        input[type="file"],
+        textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 1em;
+            transition: border-color 0.3s;
+        }
+        
+        input[type="text"]:focus,
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        textarea {
+            resize: vertical;
+            min-height: 100px;
+            font-family: inherit;
+        }
+        
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            width: 100%;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        button:active {
+            transform: translateY(0);
+        }
+        
+        button:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .button-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        .log-section {
+            grid-column: 1 / -1;
+            max-height: 400px;
+        }
+        
+        .log-container {
+            background: #1f2937;
+            border-radius: 8px;
+            padding: 15px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+        
+        .log-entry {
+            padding: 5px 0;
+            border-bottom: 1px solid #374151;
+        }
+        
+        .log-entry:last-child {
+            border-bottom: none;
+        }
+        
+        .log-entry.user {
+            color: #60a5fa;
+        }
+        
+        .log-entry.system {
+            color: #10b981;
+        }
+        
+        .log-entry.error {
+            color: #ef4444;
+        }
+        
+        .log-entry.info {
+            color: #a78bfa;
+        }
+        
+        .audio-player {
+            margin-top: 15px;
+            width: 100%;
+        }
+        
+        audio {
+            width: 100%;
+            border-radius: 8px;
+        }
+        
+        .voice-list {
+            background: white;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 15px;
+            max-height: 200px;
+            overflow-y: auto;
+            margin-top: 10px;
+        }
+        
+        .voice-item {
+            padding: 10px;
+            margin: 5px 0;
+            background: #f3f4f6;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.2s;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .voice-item:hover {
+            background: #e5e7eb;
+        }
+        
+        .voice-id {
+            font-family: monospace;
+            font-size: 0.9em;
+        }
+        
+        .delete-btn {
+            background: #ef4444;
+            padding: 5px 10px;
+            font-size: 0.8em;
+            width: auto;
+        }
+        
+        .progress {
+            margin-top: 10px;
+            height: 8px;
+            background: #e5e7eb;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            transition: width 0.3s;
+        }
+        
+        @media (max-width: 768px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎙️ F5-TTS WebSocket Client</h1>
+            <div class="status disconnected" id="status">Disconnected</div>
+        </header>
+        
+        <div class="main-content">
+            <!-- Register Voice Section -->
+            <div class="section">
+                <h2>📝 Register Voice</h2>
+                <div class="form-group">
+                    <label>Audio File (WAV, 8-12 seconds)</label>
+                    <input type="file" id="audioFile" accept="audio/*">
+                </div>
+                <div class="form-group">
+                    <label>Reference Text</label>
+                    <textarea id="refText" placeholder="Transcript of the audio file..."></textarea>
+                </div>
+                <button onclick="registerVoice()">Register Voice</button>
+            </div>
+            
+            <!-- Generate Speech Section -->
+            <div class="section">
+                <h2>🎵 Generate Speech</h2>
+                <div class="form-group">
+                    <label>Voice ID</label>
+                    <input type="text" id="voiceId" placeholder="Enter voice ID or select from list">
+                </div>
+                <div class="form-group">
+                    <label>Text to Generate</label>
+                    <textarea id="genText" placeholder="Enter the text you want to synthesize..."></textarea>
+                </div>
+                <button onclick="generateSpeech()">Generate Speech</button>
+                <div id="progressContainer" style="display: none;">
+                    <div class="progress">
+                        <div class="progress-bar" id="progressBar" style="width: 0%"></div>
+                    </div>
+                    <p id="progressText" style="text-align: center; margin-top: 5px; color: #667eea;"></p>
+                </div>
+                <div class="audio-player" id="audioPlayerContainer" style="display: none;">
+                    <audio id="audioPlayer" controls></audio>
+                </div>
+            </div>
+            
+            <!-- Voice Management Section -->
+            <div class="section">
+                <h2>📋 Voice Management</h2>
+                <div class="button-group">
+                    <button onclick="listVoices()">List Voices</button>
+                    <button onclick="clearLogs()">Clear Logs</button>
+                </div>
+                <div class="voice-list" id="voiceList" style="display: none;"></div>
+            </div>
+            
+            <!-- Quick Actions Section -->
+            <div class="section">
+                <h2>⚡ Quick Actions</h2>
+                <div class="button-group">
+                    <button onclick="connectWebSocket()">Connect</button>
+                    <button onclick="disconnectWebSocket()">Disconnect</button>
+                </div>
+                <div style="margin-top: 15px;">
+                    <label>WebSocket URL</label>
+                    <input type="text" id="wsUrl" value="ws://localhost:8765/ws">
+                </div>
+            </div>
+            
+            <!-- Log Section -->
+            <div class="section log-section">
+                <h2>📊 Activity Log</h2>
+                <div class="log-container" id="logContainer"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let ws = null;
+        let audioChunks = [];
+        let expectedChunks = 0;
+        
+        // Initialize on page load
+        window.onload = () => {
+            connectWebSocket();
+        };
+        
+        // WebSocket Connection
+        function connectWebSocket() {
+            const url = document.getElementById('wsUrl').value;
+            
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                addLog('Already connected', 'info');
+                return;
+            }
+            
+            addLog('Connecting to ' + url, 'info');
+            
+            ws = new WebSocket(url);
+            
+            ws.onopen = () => {
+                addLog('✓ Connected to server', 'system');
+                document.getElementById('status').textContent = 'Connected';
+                document.getElementById('status').className = 'status connected';
+            };
+            
+            ws.onclose = () => {
+                addLog('✗ Disconnected from server', 'error');
+                document.getElementById('status').textContent = 'Disconnected';
+                document.getElementById('status').className = 'status disconnected';
+            };
+            
+            ws.onerror = (error) => {
+                addLog('✗ WebSocket error', 'error');
+                console.error('WebSocket error:', error);
+            };
+            
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                console.log('Received:', data);
+                handleMessage(data);
+            };
+        }
+        
+        function disconnectWebSocket() {
+            if (ws) {
+                ws.close();
+                ws = null;
+            }
+        }
+        
+        // Message Handler
+        function handleMessage(data) {
+            // Handle TTS responses
+            if (data.action === 'tts' || data.action === 'tts_chunk') {
+                handleTTSResponse(data);
+            }
+            // Handle voice registration
+            else if (data.action === 'register_voice') {
+                if (data.status === 'success') {
+                    addLog('✓ Voice registered: ' + data.voice_id, 'system');
+                    document.getElementById('voiceId').value = data.voice_id;
+                } else {
+                    addLog('✗ Registration failed: ' + data.message, 'error');
+                }
+            }
+            // Handle list voices
+            else if (data.action === 'list_voices') {
+                if (data.status === 'success') {
+                    displayVoiceList(data.voices);
+                }
+            }
+            // Handle delete voice
+            else if (data.action === 'delete_voice') {
+                if (data.status === 'success') {
+                    addLog('✓ Voice deleted', 'system');
+                    listVoices(); // Refresh list
+                } else {
+                    addLog('✗ Delete failed: ' + data.message, 'error');
+                }
+            }
+        }
+        
+        // TTS Response Handler
+        function handleTTSResponse(data) {
+            if (data.status === 'streaming') {
+                addLog(`📦 Receiving audio in ${data.total_chunks} chunks...`, 'info');
+                audioChunks = [];
+                expectedChunks = data.total_chunks;
+                showProgress(0, expectedChunks);
+            } 
+            else if (data.status === 'chunk') {
+                audioChunks.push(data.chunk);
+                const progress = data.chunk_index + 1;
+                addLog(`📦 Chunk ${progress}/${expectedChunks}`, 'info');
+                showProgress(progress, expectedChunks);
+            }
+            else if (data.status === 'complete') {
+                addLog('✓ Assembling audio...', 'system');
+                
+                // Use setTimeout to avoid blocking UI
+                setTimeout(() => {
+                    try {
+                        // More efficient concatenation
+                        const combinedBase64 = audioChunks.join('');
+                        audioChunks = []; // Clear memory
+                        
+                        addLog('✓ Decoding audio...', 'system');
+                        playAudioFromBase64(combinedBase64);
+                        hideProgress();
+                        addLog('✓ Audio ready!', 'system');
+                    } catch (error) {
+                        addLog('✗ Failed to assemble audio: ' + error.message, 'error');
+                        hideProgress();
+                    }
+                }, 100);
+            }
+            else if (data.status === 'success') {
+                addLog('✓ Audio generated', 'system');
+                playAudioFromBase64(data.audio);
+            }
+            else if (data.status === 'error') {
+                addLog('✗ TTS Error: ' + data.message, 'error');
+                hideProgress();
+            }
+        }
+        // Register Voice
+        async function registerVoice() {
+            const audioFile = document.getElementById('audioFile').files[0];
+            const refText = document.getElementById('refText').value;
+            
+            if (!audioFile) {
+                alert('Please select an audio file');
+                return;
+            }
+            
+            if (!refText) {
+                alert('Please enter reference text');
+                return;
+            }
+            
+            addLog('📤 Uploading audio...', 'user');
+            
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                const arrayBuffer = e.target.result;
+                const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+                
+                ws.send(JSON.stringify({
+                    action: 'register_voice',
+                    audio: base64,
+                    reference_text: refText
+                }));
+                
+                addLog('⏳ Waiting for server response...', 'info');
+            };
+            
+            reader.readAsArrayBuffer(audioFile);
+        }
+        
+        // Generate Speech
+        function generateSpeech() {
+            const voiceId = document.getElementById('voiceId').value;
+            const text = document.getElementById('genText').value;
+            
+            if (!voiceId) {
+                alert('Please enter a voice ID');
+                return;
+            }
+            
+            if (!text) {
+                alert('Please enter text to generate');
+                return;
+            }
+            
+            addLog('🎵 Generating speech...', 'user');
+            
+            ws.send(JSON.stringify({
+                action: 'tts',
+                voice_id: voiceId,
+                text: text,
+                save_file: false
+            }));
+        }
+        
+        // List Voices
+        function listVoices() {
+            addLog('📋 Requesting voice list...', 'user');
+            
+            ws.send(JSON.stringify({
+                action: 'list_voices'
+            }));
+        }
+        
+        // Display Voice List
+        function displayVoiceList(voices) {
+            const voiceList = document.getElementById('voiceList');
+            voiceList.style.display = 'block';
+            
+            if (voices.length === 0) {
+                voiceList.innerHTML = '<p style="text-align: center; color: #9ca3af;">No voices registered</p>';
+                return;
+            }
+            
+            voiceList.innerHTML = '';
+            voices.forEach(voiceId => {
+                const item = document.createElement('div');
+                item.className = 'voice-item';
+                item.innerHTML = `
+                    <span class="voice-id" onclick="selectVoice('${voiceId}')">${voiceId}</span>
+                    <button class="delete-btn" onclick="deleteVoice('${voiceId}')">Delete</button>
+                `;
+                voiceList.appendChild(item);
+            });
+            
+            addLog(`✓ Found ${voices.length} voice(s)`, 'system');
+        }
+        
+        // Select Voice
+        function selectVoice(voiceId) {
+            document.getElementById('voiceId').value = voiceId;
+            addLog('✓ Selected voice: ' + voiceId, 'info');
+        }
+        
+        // Delete Voice
+        function deleteVoice(voiceId) {
+            if (!confirm('Delete voice ' + voiceId + '?')) {
+                return;
+            }
+            
+            addLog('🗑️ Deleting voice...', 'user');
+            
+            ws.send(JSON.stringify({
+                action: 'delete_voice',
+                voice_id: voiceId
+            }));
+        }
+        
+        // Play Audio from Base64
+        function playAudioFromBase64(base64) {
+            const audioBlob = base64ToBlob(base64, 'audio/wav');
+            const audioUrl = URL.createObjectURL(audioBlob);
+            
+            const audioPlayer = document.getElementById('audioPlayer');
+            const audioPlayerContainer = document.getElementById('audioPlayerContainer');
+            
+            audioPlayer.src = audioUrl;
+            audioPlayerContainer.style.display = 'block';
+            audioPlayer.play();
+        }
+        
+        // Convert Base64 to Blob (optimized)
+        function base64ToBlob(base64, type) {
+            try {
+                // Use native APIs for better performance
+                const binaryString = atob(base64);
+                const len = binaryString.length;
+                const bytes = new Uint8Array(len);
+                
+                // Batch process in chunks to avoid blocking
+                const chunkSize = 1024 * 1024; // 1MB chunks
+                for (let i = 0; i < len; i += chunkSize) {
+                    const end = Math.min(i + chunkSize, len);
+                    for (let j = i; j < end; j++) {
+                        bytes[j] = binaryString.charCodeAt(j);
+                    }
+                }
+                
+                return new Blob([bytes], { type: type });
+            } catch (error) {
+                console.error('Blob conversion error:', error);
+                throw error;
+            }
+        }
+        
+        // Progress Bar
+        function showProgress(current, total) {
+            const container = document.getElementById('progressContainer');
+            const bar = document.getElementById('progressBar');
+            const text = document.getElementById('progressText');
+            
+            container.style.display = 'block';
+            const percent = (current / total) * 100;
+            bar.style.width = percent + '%';
+            text.textContent = `${current} / ${total} chunks`;
+        }
+        
+        function hideProgress() {
+            document.getElementById('progressContainer').style.display = 'none';
+        }
+        
+        // Logging
+        function addLog(message, type = 'info') {
+            const logContainer = document.getElementById('logContainer');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry ' + type;
+            
+            const timestamp = new Date().toLocaleTimeString();
+            entry.textContent = `[${timestamp}] ${message}`;
+            
+            logContainer.appendChild(entry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+        
+        function clearLogs() {
+            document.getElementById('logContainer').innerHTML = '';
+            addLog('Logs cleared', 'info');
+        }
+    </script>
+</body>
+</html>
