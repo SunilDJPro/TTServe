@@ -70,7 +70,7 @@ class Config:
     # F5-TTS model settings
     # Model configuration
     MODEL_TYPE = "F5-TTS"  # or "E2-TTS"
-    MODEL_NAME = "F5TTS_v1_Base"  # F5TTS_Base, F5TTS_Small, E2TTS_Base, etc.
+    MODEL_NAME = "F5TTS_v1_Base"  
     
     # Checkpoint - either local path or will download from HuggingFace
     CKPT_FILE = None  # Set to None to auto-download, or provide local path

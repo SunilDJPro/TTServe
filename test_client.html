@@ -258,14 +258,14 @@
 <body>
     <div class="container">
         <header>
-            <h1>🎙️ F5-TTS WebSocket Client</h1>
+            <h1>F5-TTS WebSocket Client</h1>
             <div class="status disconnected" id="status">Disconnected</div>
         </header>
         
         <div class="main-content">
             <!-- Register Voice Section -->
             <div class="section">
-                <h2>📝 Register Voice</h2>
+                <h2>Register Voice</h2>
                 <div class="form-group">
                     <label>Audio File (WAV, 8-12 seconds)</label>
                     <input type="file" id="audioFile" accept="audio/*">
@@ -274,12 +274,12 @@
                     <label>Reference Text</label>
                     <textarea id="refText" placeholder="Transcript of the audio file..."></textarea>
                 </div>
-                <button onclick="registerVoice()">Register Voice</button>
+                <button onclick="registerVoice()" id="registerBtn">Register Voice</button>
             </div>
             
             <!-- Generate Speech Section -->
             <div class="section">
-                <h2>🎵 Generate Speech</h2>
+                <h2>Generate Speech</h2>
                 <div class="form-group">
                     <label>Voice ID</label>
                     <input type="text" id="voiceId" placeholder="Enter voice ID or select from list">
@@ -288,7 +288,7 @@
                     <label>Text to Generate</label>
                     <textarea id="genText" placeholder="Enter the text you want to synthesize..."></textarea>
                 </div>
-                <button onclick="generateSpeech()">Generate Speech</button>
+                <button onclick="generateSpeech()" id="generateBtn">Generate Speech</button>
                 <div id="progressContainer" style="display: none;">
                     <div class="progress">
                         <div class="progress-bar" id="progressBar" style="width: 0%"></div>
@@ -302,7 +302,7 @@
             
             <!-- Voice Management Section -->
             <div class="section">
-                <h2>📋 Voice Management</h2>
+                <h2>Voice Management</h2>
                 <div class="button-group">
                     <button onclick="listVoices()">List Voices</button>
                     <button onclick="clearLogs()">Clear Logs</button>
@@ -312,7 +312,7 @@
             
             <!-- Quick Actions Section -->
             <div class="section">
-                <h2>⚡ Quick Actions</h2>
+                <h2>Server Management</h2>
                 <div class="button-group">
                     <button onclick="connectWebSocket()">Connect</button>
                     <button onclick="disconnectWebSocket()">Disconnect</button>
@@ -325,7 +325,7 @@
             
             <!-- Log Section -->
             <div class="section log-section">
-                <h2>📊 Activity Log</h2>
+                <h2>Activity Log</h2>
                 <div class="log-container" id="logContainer"></div>
             </div>
         </div>
@@ -335,6 +335,7 @@
         let ws = null;
         let audioChunks = [];
         let expectedChunks = 0;
+        let pendingResponses = new Map(); // Track pending requests
         
         // Initialize on page load
         window.onload = () => {
@@ -372,9 +373,23 @@
             };
             
             ws.onmessage = (event) => {
-                const data = JSON.parse(event.data);
-                console.log('Received:', data);
-                handleMessage(data);
+                try {
+                    const data = JSON.parse(event.data);
+                    
+                    // Only log non-chunk messages fully to avoid console spam
+                    if (data.status !== 'chunk') {
+                        console.log('Received:', data);
+                    } else {
+                        // For chunks, just log minimal info
+                        console.log(`Chunk ${data.chunk_index}: ${data.chunk ? data.chunk.length : 0} chars`);
+                    }
+                    
+                    handleMessage(data);
+                } catch (e) {
+                    addLog('✗ Failed to parse message: ' + e.message, 'error');
+                    console.error('Parse error:', e);
+                    console.error('Raw message:', event.data ? event.data.substring(0, 200) : 'empty');
+                }
             };
         }
         
@@ -396,8 +411,11 @@
                 if (data.status === 'success') {
                     addLog('✓ Voice registered: ' + data.voice_id, 'system');
                     document.getElementById('voiceId').value = data.voice_id;
+                    // Re-enable button
+                    document.getElementById('registerBtn').disabled = false;
                 } else {
                     addLog('✗ Registration failed: ' + data.message, 'error');
+                    document.getElementById('registerBtn').disabled = false;
                 }
             }
             // Handle list voices
@@ -418,7 +436,7 @@
         }
         
         // TTS Response Handler
-        function handleTTSResponse(data) {
+        async function handleTTSResponse(data) {
             if (data.status === 'streaming') {
                 addLog(`📦 Receiving audio in ${data.total_chunks} chunks...`, 'info');
                 audioChunks = [];
@@ -426,41 +444,93 @@
                 showProgress(0, expectedChunks);
             } 
             else if (data.status === 'chunk') {
-                audioChunks.push(data.chunk);
-                const progress = data.chunk_index + 1;
-                addLog(`📦 Chunk ${progress}/${expectedChunks}`, 'info');
-                showProgress(progress, expectedChunks);
+                // Clean and validate chunk data
+                const chunk = data.chunk;
+                if (chunk && typeof chunk === 'string') {
+                    // Remove any whitespace/newlines that might have been added
+                    const cleanChunk = chunk.trim();
+                    audioChunks.push(cleanChunk);
+                    const progress = data.chunk_index + 1;
+                    addLog(`📦 Chunk ${progress}/${expectedChunks} (${cleanChunk.length} chars)`, 'info');
+                    showProgress(progress, expectedChunks);
+                } else {
+                    addLog('✗ Invalid chunk received', 'error');
+                    console.error('Invalid chunk:', data);
+                }
             }
             else if (data.status === 'complete') {
                 addLog('✓ Assembling audio...', 'system');
                 
                 // Use setTimeout to avoid blocking UI
-                setTimeout(() => {
+                setTimeout(async () => {
                     try {
-                        // More efficient concatenation
+                        // Validate chunks
+                        if (audioChunks.length === 0) {
+                            throw new Error('No audio chunks received');
+                        }
+                        
+                        addLog(`✓ Combining ${audioChunks.length} chunks...`, 'info');
+                        
+                        // Combine chunks - no separator needed for base64
                         const combinedBase64 = audioChunks.join('');
-                        audioChunks = []; // Clear memory
+                        
+                        // Validate base64 string
+                        if (!combinedBase64 || combinedBase64.length === 0) {
+                            throw new Error('Combined base64 is empty');
+                        }
+                        
+                        // Check if it looks like valid base64
+                        const base64Regex = /^[A-Za-z0-9+/]*={0,2}$/;
+                        if (!base64Regex.test(combinedBase64.substring(0, 100))) {
+                            console.error('First 100 chars:', combinedBase64.substring(0, 100));
+                            throw new Error('Combined data does not look like valid base64');
+                        }
+                        
+                        addLog(`✓ Total base64 length: ${combinedBase64.length}`, 'info');
+                        
+                        // Clear chunks from memory
+                        audioChunks = [];
                         
                         addLog('✓ Decoding audio...', 'system');
-                        playAudioFromBase64(combinedBase64);
+                        await playAudioFromBase64(combinedBase64);
                         hideProgress();
                         addLog('✓ Audio ready!', 'system');
+                        
+                        // Re-enable button
+                        document.getElementById('generateBtn').disabled = false;
                     } catch (error) {
                         addLog('✗ Failed to assemble audio: ' + error.message, 'error');
+                        console.error('Assembly error:', error);
+                        console.error('Chunks info:', {
+                            count: audioChunks.length,
+                            lengths: audioChunks.map(c => c.length),
+                            firstChunkStart: audioChunks[0] ? audioChunks[0].substring(0, 50) : 'N/A'
+                        });
                         hideProgress();
+                        audioChunks = []; // Clear on error
+                        document.getElementById('generateBtn').disabled = false;
                     }
                 }, 100);
             }
             else if (data.status === 'success') {
                 addLog('✓ Audio generated', 'system');
-                playAudioFromBase64(data.audio);
+                try {
+                    await playAudioFromBase64(data.audio);
+                    document.getElementById('generateBtn').disabled = false;
+                } catch (error) {
+                    addLog('✗ Failed to play audio: ' + error.message, 'error');
+                    console.error('Playback error:', error);
+                    document.getElementById('generateBtn').disabled = false;
+                }
             }
             else if (data.status === 'error') {
                 addLog('✗ TTS Error: ' + data.message, 'error');
                 hideProgress();
+                document.getElementById('generateBtn').disabled = false;
             }
         }
-        // Register Voice
+        
+        // Register Voice - FIXED VERSION
         async function registerVoice() {
             const audioFile = document.getElementById('audioFile').files[0];
             const refText = document.getElementById('refText').value;
@@ -475,23 +545,54 @@
                 return;
             }
             
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                alert('Not connected to server');
+                return;
+            }
+            
+            // Disable button to prevent double-click
+            document.getElementById('registerBtn').disabled = true;
+            
             addLog('📤 Uploading audio...', 'user');
             
-            const reader = new FileReader();
-            reader.onload = async (e) => {
-                const arrayBuffer = e.target.result;
-                const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+            try {
+                const reader = new FileReader();
                 
-                ws.send(JSON.stringify({
-                    action: 'register_voice',
-                    audio: base64,
-                    reference_text: refText
-                }));
+                reader.onload = async (e) => {
+                    try {
+                        const arrayBuffer = e.target.result;
+                        
+                        // Convert to base64 in chunks to avoid memory issues
+                        const base64 = await arrayBufferToBase64(arrayBuffer);
+                        
+                        addLog('✓ Audio encoded, sending to server...', 'info');
+                        
+                        ws.send(JSON.stringify({
+                            action: 'register_voice',
+                            audio: base64,
+                            reference_text: refText
+                        }));
+                        
+                        addLog('⏳ Waiting for server response...', 'info');
+                    } catch (error) {
+                        addLog('✗ Error encoding audio: ' + error.message, 'error');
+                        console.error('Encoding error:', error);
+                        document.getElementById('registerBtn').disabled = false;
+                    }
+                };
                 
-                addLog('⏳ Waiting for server response...', 'info');
-            };
-            
-            reader.readAsArrayBuffer(audioFile);
+                reader.onerror = (error) => {
+                    addLog('✗ Error reading file: ' + error, 'error');
+                    console.error('File read error:', error);
+                    document.getElementById('registerBtn').disabled = false;
+                };
+                
+                reader.readAsArrayBuffer(audioFile);
+            } catch (error) {
+                addLog('✗ Error: ' + error.message, 'error');
+                console.error('Register error:', error);
+                document.getElementById('registerBtn').disabled = false;
+            }
         }
         
         // Generate Speech
@@ -509,18 +610,36 @@
                 return;
             }
             
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                alert('Not connected to server');
+                return;
+            }
+            
+            // Disable button
+            document.getElementById('generateBtn').disabled = true;
+            
             addLog('🎵 Generating speech...', 'user');
             
-            ws.send(JSON.stringify({
-                action: 'tts',
-                voice_id: voiceId,
-                text: text,
-                save_file: false
-            }));
+            try {
+                ws.send(JSON.stringify({
+                    action: 'tts',
+                    voice_id: voiceId,
+                    text: text,
+                    save_file: false
+                }));
+            } catch (error) {
+                addLog('✗ Error sending request: ' + error.message, 'error');
+                document.getElementById('generateBtn').disabled = false;
+            }
         }
         
         // List Voices
         function listVoices() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                alert('Not connected to server');
+                return;
+            }
+            
             addLog('📋 Requesting voice list...', 'user');
             
             ws.send(JSON.stringify({
@@ -564,6 +683,11 @@
                 return;
             }
             
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                alert('Not connected to server');
+                return;
+            }
+            
             addLog('🗑️ Deleting voice...', 'user');
             
             ws.send(JSON.stringify({
@@ -572,40 +696,107 @@
             }));
         }
         
-        // Play Audio from Base64
-        function playAudioFromBase64(base64) {
-            const audioBlob = base64ToBlob(base64, 'audio/wav');
-            const audioUrl = URL.createObjectURL(audioBlob);
-            
-            const audioPlayer = document.getElementById('audioPlayer');
-            const audioPlayerContainer = document.getElementById('audioPlayerContainer');
-            
-            audioPlayer.src = audioUrl;
-            audioPlayerContainer.style.display = 'block';
-            audioPlayer.play();
+        // FIXED: ArrayBuffer to Base64 conversion (handles large files)
+        async function arrayBufferToBase64(buffer) {
+            return new Promise((resolve, reject) => {
+                try {
+                    const blob = new Blob([buffer]);
+                    const reader = new FileReader();
+                    
+                    reader.onloadend = () => {
+                        // Remove data URL prefix (e.g., "data:application/octet-stream;base64,")
+                        const base64 = reader.result.split(',')[1];
+                        resolve(base64);
+                    };
+                    
+                    reader.onerror = reject;
+                    reader.readAsDataURL(blob);
+                } catch (error) {
+                    reject(error);
+                }
+            });
         }
         
-        // Convert Base64 to Blob (optimized)
-        function base64ToBlob(base64, type) {
+        // FIXED: Play Audio from Base64 (handles large audio)
+        async function playAudioFromBase64(base64) {
             try {
-                // Use native APIs for better performance
-                const binaryString = atob(base64);
+                // Use Blob method instead of atob for better memory handling
+                const audioBlob = await base64ToBlob(base64, 'audio/wav');
+                const audioUrl = URL.createObjectURL(audioBlob);
+                
+                const audioPlayer = document.getElementById('audioPlayer');
+                const audioPlayerContainer = document.getElementById('audioPlayerContainer');
+                
+                // Revoke old URL to free memory
+                if (audioPlayer.src) {
+                    URL.revokeObjectURL(audioPlayer.src);
+                }
+                
+                audioPlayer.src = audioUrl;
+                audioPlayerContainer.style.display = 'block';
+                audioPlayer.play().catch(e => {
+                    addLog('✗ Playback error: ' + e.message, 'error');
+                    console.error('Play error:', e);
+                });
+            } catch (error) {
+                addLog('✗ Error creating audio: ' + error.message, 'error');
+                console.error('Audio creation error:', error);
+                throw error;
+            }
+        }
+        
+        // FIXED: Convert Base64 to Blob (optimized for large files)
+        async function base64ToBlob(base64, type) {
+            try {
+                // Clean the base64 string - remove any whitespace
+                const cleanBase64 = base64.replace(/\s/g, '');
+                
+                // Validate base64
+                if (!cleanBase64 || cleanBase64.length === 0) {
+                    throw new Error('Empty base64 string');
+                }
+                
+                // Method 1: Use fetch API (most efficient for large data)
+                const dataUrl = `data:${type};base64,${cleanBase64}`;
+                const response = await fetch(dataUrl);
+                
+                if (!response.ok) {
+                    throw new Error(`Fetch failed: ${response.statusText}`);
+                }
+                
+                return await response.blob();
+                
+            } catch (error) {
+                console.warn('Fetch method failed, using fallback:', error);
+                // Fallback method
+                try {
+                    return base64ToBlobFallback(base64, type);
+                } catch (fallbackError) {
+                    console.error('Both methods failed:', fallbackError);
+                    throw new Error(`Failed to convert base64 to blob: ${error.message}`);
+                }
+            }
+        }
+        
+        // Fallback method for base64 to Blob conversion
+        function base64ToBlobFallback(base64, type) {
+            try {
+                // Clean the base64 string
+                const cleanBase64 = base64.replace(/\s/g, '');
+                
+                // Decode base64
+                const binaryString = atob(cleanBase64);
                 const len = binaryString.length;
                 const bytes = new Uint8Array(len);
                 
-                // Batch process in chunks to avoid blocking
-                const chunkSize = 1024 * 1024; // 1MB chunks
-                for (let i = 0; i < len; i += chunkSize) {
-                    const end = Math.min(i + chunkSize, len);
-                    for (let j = i; j < end; j++) {
-                        bytes[j] = binaryString.charCodeAt(j);
-                    }
+                for (let i = 0; i < len; i++) {
+                    bytes[i] = binaryString.charCodeAt(i);
                 }
                 
                 return new Blob([bytes], { type: type });
             } catch (error) {
-                console.error('Blob conversion error:', error);
-                throw error;
+                console.error('Fallback conversion error:', error);
+                throw new Error(`Invalid base64 data: ${error.message}`);
             }
         }
         
