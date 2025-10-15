@@ -1,0 +1,30 @@
+Connection ID: 36045826-fe5b-4c6d-92ef-14c02e38bb39
+Duration: 2.176s
+Type: answer
+
+SDP Answer:
+----------------------------------------------------------------------
+v=0
+o=- 3969510531 3969510531 IN IP4 0.0.0.0
+s=-
+t=0 0
+a=group:BUNDLE 0
+a=msid-semantic:WMS *
+m=audio 41769 UDP/TLS/RTP/SAVPF 111
+c=IN IP4 192.168.0.112
+a=sendrecv
+a=mid:0
+a=msid:82d407f2-16f0-4bfc-b226-65a0227fe885 e3dc3704-e7fe-43d5-8a57-3b34ab1bac19
+a=rtcp:9 IN IP4 0.0.0.0
+a=rtcp-mux
+a=ssrc:2624489639 cname:4467fc31-1699-4314-93c0-d60bc2afbf62
+a=rtpmap:111 opus/48000/2
+a=candidate:cbcbf885064b6460e858c8442e08d6c1 1 udp 2130706431 192.168.0.112 41769 typ host
+a=candidate:9f026ad7ac2bffaa28bc29a686284529 1 udp 1694498815 103.130.90.74 41769 typ srflx raddr 192.168.0.112 rport 41769
+a=end-of-candidates
+a=ice-ufrag:gGIZ
+a=ice-pwd:UH5jGGed6LLTX75qgPgZIV
+a=fingerprint:sha-256 46:A2:F8:63:B1:B9:6B:67:FC:85:C8:D6:04:15:5D:32:B9:72:02:C9:14:3D:8C:C1:E8:43:6D:99:77:14:20:51
+a=fingerprint:sha-384 82:54:99:22:3F:DA:E5:FE:EA:FD:64:01:5D:26:7A:07:5B:28:56:1D:42:C6:43:5D:E7:3A:CA:1E:DD:BB:89:C9:4E:58:21:7D:67:B5:DF:57:D6:FB:55:46:9C:D7:5E:EC
+a=fingerprint:sha-512 60:CB:8A:7F:F3:83:1F:A5:5C:C3:D8:BE:48:5A:E6:05:6E:85:43:15:0E:6A:DB:0B:77:C3:1F:DA:39:A3:F5:E4:B7:D0:F7:4C:CA:A2:D8:BE:81:D8:C9:6E:36:94:25:F3:22:18:51:D2:59:39:96:B1:72:B8:74:4B:F5:F6:A1:20
+a=setup:active

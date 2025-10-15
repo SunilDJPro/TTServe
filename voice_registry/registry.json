@@ -1,0 +1,16 @@
+{
+  "b6d0d27a-b739-4332-b65c-7bd7823b35ae": {
+    "voice_id": "b6d0d27a-b739-4332-b65c-7bd7823b35ae",
+    "reference_text": "I stand before you today to discuss a topic that is revolutionizing our world in ways we would have only imagined few decades ago",
+    "sample_rate": 24000,
+    "duration": 9.191666666666666,
+    "created_at": 20114.894373534
+  },
+  "67a7e278-6881-47ab-9b5f-b4fce947295d": {
+    "voice_id": "67a7e278-6881-47ab-9b5f-b4fce947295d",
+    "reference_text": "I stand before you today to discuss a topic that is revolutionizing our world in ways we would have only imagined few decades ago",
+    "sample_rate": 24000,
+    "duration": 9.191666666666666,
+    "created_at": 27848.893280028
+  }
+}
